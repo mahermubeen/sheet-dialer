@@ -1,0 +1,29 @@
+# Real lead data: never public
+*.xlsx
+*.xls
+*.csv
+!tests/fixtures/*.xlsx
+leads*/
+recordings/
+transcripts/
+
+# Personal config
+config.json
+.env
+.env.*
+!.env.example
+
+# Python
+.venv/
+venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+.ruff_cache/
+
+# Tools / OS
+.claude/settings.local.json
+CLAUDE.local.md
+.DS_Store
+*.log
+ngrok.yml
