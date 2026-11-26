@@ -50,7 +50,8 @@ _config_cache = {"mtime": None, "cfg": dict(DEFAULT_CONFIG)}
 
 def load_config():
     """Config from config.json over the defaults, re-read only when the file changes."""
-    mtime = os.path.getmtime(CONFIG_FILE) if os.path.exists(CONFIG_FILE) else None
+    st = os.stat(CONFIG_FILE) if os.path.exists(CONFIG_FILE) else None
+    mtime = (st.st_mtime_ns, st.st_size) if st else None  # size too: catches edits within the same tick
     if mtime != _config_cache["mtime"]:
         cfg = dict(DEFAULT_CONFIG)
         if mtime is not None:
