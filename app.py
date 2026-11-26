@@ -228,16 +228,16 @@ def api_leads():
     leads, scripts, sheet, sheets = read_leads(request.args.get("sheet"))
     status = request.args.get("status", "new")
     country = request.args.get("country", "")
-    queue = [l for l in leads if matches(l, status, country)]
-    queue.sort(key=lambda l: -to_int(l.get("Fit Score")))
+    queue = [x for x in leads if matches(x, status, country)]
+    queue.sort(key=lambda x: -to_int(x.get("Fit Score")))
     stats = {
         "total": len(leads),
-        "called": sum(1 for l in leads if l.get("Status") not in ("", "New")),
-        "connected": sum(1 for l in leads if l.get("Status") in ("Interested", "Callback", "Not interested", "Demo booked")),
-        "interested": sum(1 for l in leads if l.get("Status") in ("Interested", "Demo booked")),
-        "booked": sum(1 for l in leads if l.get("Status") == "Demo booked"),
+        "called": sum(1 for x in leads if x.get("Status") not in ("", "New")),
+        "connected": sum(1 for x in leads if x.get("Status") in ("Interested", "Callback", "Not interested", "Demo booked")),
+        "interested": sum(1 for x in leads if x.get("Status") in ("Interested", "Demo booked")),
+        "booked": sum(1 for x in leads if x.get("Status") == "Demo booked"),
     }
-    countries = sorted({l.get("Country", "") for l in leads if l.get("Country")})
+    countries = sorted({x.get("Country", "") for x in leads if x.get("Country")})
     return jsonify(queue=queue, scripts=scripts, stats=stats, countries=countries, sheet=sheet, sheets=sheets)
 
 
