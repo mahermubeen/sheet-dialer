@@ -14,22 +14,22 @@ OUT = os.path.join(BASE, "leads.xlsx")
 
 COLUMNS = [
     "ID", "Business Name", "Category", "Has Chat Widget", "WhatsApp/IG Active", "Fit Score",
-    "Owner/Decision Maker", "Phone", "Alt Phone", "Email", "Website", "Address", "City", "Country",
+    "Owner/Decision Maker", "Phone", "Alt Phone", "Email", "Website", "Address", "City", "Country", "Timezone",
     "Google Rating/Reviews", "Business Notes", "Personalized Opener", "Script", "DNC Checked",
     "Status", "Call Outcome", "Attempts", "Call Duration", "Notes", "Follow-up Date", "Calendly Link Sent", "Source",
 ]
 
 TEST_ROWS = [
     ["T1", "TEST - Sunrise Dental", "Dental clinic", "No", "IG only", 5, "Dr. Sarah Test", "+1 555 010 0001", "",
-     "", "example.com", "1 Test St", "Austin", "US", "4.6 (120)",
+     "", "example.com", "1 Test St", "Austin", "US", "America/Chicago", "4.6 (120)",
      "3 reviews mention calls going to voicemail", "Saw a few reviews saying it's hard to reach the front desk after 5pm.",
      "", "N/A (business line)", "", "", "", "", "", "", "", "test row"],
     ["T2", "TEST - Northside Lettings", "Real estate agency", "Basic form only", "WhatsApp yes", 4, "James Test",
-     "07700 900001", "", "", "example.co.uk", "2 Test Rd", "Manchester", "UK", "4.2 (58)",
+     "07700 900001", "", "", "example.co.uk", "2 Test Rd", "Manchester", "UK", "", "4.2 (58)",
      "Posts listings on Instagram daily, no instant reply on site", "You post new listings daily - who answers the DMs at 10pm?",
      "", "TPS/CTPS: check", "", "", "", "", "", "", "", "test row"],
     ["T3", "TEST - Lahore Smile Clinic", "Dental clinic", "No", "WhatsApp yes", 5, "Dr. Ali Test",
-     "0300 0000000", "", "", "example.pk", "3 Test Blvd, DHA", "Lahore", "PK", "4.8 (210)",
+     "0300 0000000", "", "", "example.pk", "3 Test Blvd, DHA", "Lahore", "PK", "", "4.8 (210)",
      "Takes bookings only via WhatsApp manually", "Aap ki clinic WhatsApp pe bookings leti hai - raat ko messages kaun handle karta hai?",
      "", "N/A", "", "", "", "", "", "", "", "test row"],
 ]

@@ -13,6 +13,11 @@ import re
 import threading
 from datetime import date, datetime
 
+try:
+    from zoneinfo import ZoneInfo
+except ImportError:  # pragma: no cover - Python < 3.9
+    ZoneInfo = None
+
 from flask import Flask, Response, jsonify, render_template, request
 from openpyxl import load_workbook
 
@@ -26,6 +31,9 @@ COUNTRY_CODES = {"US": "1", "USA": "1", "CA": "1", "CANADA": "1", "UK": "44", "G
 
 OUTCOMES = ("Interested", "Demo booked", "Callback", "No answer", "Voicemail", "Not interested",
             "Wrong number", "Do not call")
+# Countries with a single time zone; US/CA leads need a Timezone column (IANA name, e.g. America/Chicago).
+COUNTRY_TZ = {"UK": "Europe/London", "GB": "Europe/London", "PK": "Asia/Karachi", "PAKISTAN": "Asia/Karachi"}
+CALL_HOURS = (8, 21)  # allowed local calling window: 8am to 9pm (US TCPA; a sensible default elsewhere)
 NO_DIAL = ("Do not call", "Wrong number")  # outcomes that permanently stop a number being dialed
 DATE_RE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
 DURATION_RE = re.compile(r"^\d{1,3}:\d{2}$")
@@ -91,6 +99,18 @@ def valid_e164(number):
     return len(digits) == 11 if digits.startswith("1") else True
 
 
+def lead_timezone(lead):
+    """The lead's IANA time zone from its Timezone column or its country, or "" if unknown or invalid."""
+    name = (lead.get("Timezone") or COUNTRY_TZ.get(str(lead.get("Country") or "").strip().upper(), "")).strip()
+    if not name or ZoneInfo is None:
+        return ""
+    try:
+        ZoneInfo(name)
+    except Exception:  # unknown zone name, or no tz database on this machine
+        return ""
+    return name
+
+
 def fmt(value):
     if isinstance(value, (datetime, date)):
         return value.strftime("%Y-%m-%d")
@@ -122,6 +142,7 @@ def read_leads(sheet=None):
         if lead["_dial"] and not valid_e164(lead["_dial"]):
             lead["_bad_phone"] = lead.get("Phone", "")
             lead["_dial"] = ""
+        lead["_tz"] = lead_timezone(lead)
         if lead.get("Status") in NO_DIAL:
             lead["_blocked"] = lead["Status"]
             lead["_dial"] = ""  # never sent to the browser as dialable, so no view or auto-dial can call it
@@ -168,6 +189,7 @@ def require_password():
 def index():
     cfg = load_config()
     cfg.pop("access_password", None)
+    cfg["call_hours"] = CALL_HOURS
     return render_template("dialer.html", config=cfg)
 
 
