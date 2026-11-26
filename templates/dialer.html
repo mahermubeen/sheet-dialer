@@ -19,6 +19,7 @@
   .card { background:var(--card); border:1px solid var(--line); border-radius:12px; padding:18px; }
   .biz { font-size:22px; font-weight:700; margin:0; }
   .sub { color:var(--muted); margin:2px 0 12px; }
+  .phone .blocked { color:var(--bad); font-size:18px; }
   .phone { font-size:26px; font-weight:700; letter-spacing:.5px; margin:8px 0; }
   .call { display:inline-block; background:var(--good); color:#fff; text-decoration:none; font-size:20px; font-weight:700; padding:14px 34px; border-radius:10px; }
   .call:hover { filter:brightness(.95); }
@@ -136,7 +137,7 @@ function dialUrl(lead){
 }
 
 function dial(lead){
-  if (!lead || !lead._dial) return;
+  if (!lead || !lead._dial || lead._blocked) return;  // server already blanks _dial for these; belt and braces
   clearTimeout(timer);
   if (!EMBED){ window.location.href = dialUrl(lead); return; }
   const data = {number: lead._dial, autoDial: true};
@@ -430,7 +431,7 @@ function render(){
         ${lead["Fit Score"] ? `<span class="badge">Fit ${esc(lead["Fit Score"])}/5</span>`:""}
         ${lead.Status ? `<span class="badge">${esc(lead.Status)}</span>`:""}
         ${lead["DNC Checked"] ? `<span class="badge">DNC: ${esc(lead["DNC Checked"])}</span>`:""}</div>
-      <div class="phone">${esc(lead._dial || "no phone")}</div>
+      <div class="phone">${lead._blocked ? `<span class="blocked">${esc(lead._blocked)} - not dialable</span>` : esc(lead._dial || "no phone")}</div>
       <div class="row">
         ${callBtn}
         <button class="ghost" onclick="next()">Skip</button>

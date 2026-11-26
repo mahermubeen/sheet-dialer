@@ -25,6 +25,7 @@ COUNTRY_CODES = {"US": "1", "USA": "1", "CA": "1", "CANADA": "1", "UK": "44", "G
 
 OUTCOMES = ("Interested", "Demo booked", "Callback", "No answer", "Voicemail", "Not interested",
             "Wrong number", "Do not call")
+NO_DIAL = ("Do not call", "Wrong number")  # outcomes that permanently stop a number being dialed
 DATE_RE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
 DURATION_RE = re.compile(r"^\d{1,3}:\d{2}$")
 MAX_NOTE = 5000
@@ -109,7 +110,10 @@ def read_leads(sheet=None):
         lead = {h: fmt(v) for h, v in zip(headers, row) if h}
         lead["_row"] = row_idx
         lead["_dial"] = to_e164(lead.get("Phone"), lead.get("Country"))
-        if sheet != SHEET and not lead["_dial"]:
+        if lead.get("Status") in NO_DIAL:
+            lead["_blocked"] = lead["Status"]
+            lead["_dial"] = ""  # never sent to the browser as dialable, so no view or auto-dial can call it
+        if sheet != SHEET and not lead["_dial"] and not lead.get("_blocked"):
             continue  # extra tabs list every lead for reference; only rows with a number are callable
         leads.append(lead)
     scripts = {}
