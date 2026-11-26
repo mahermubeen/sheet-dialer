@@ -23,6 +23,12 @@ SCRIPT_SHEET = "Scripts"
 
 COUNTRY_CODES = {"US": "1", "USA": "1", "CA": "1", "CANADA": "1", "UK": "44", "GB": "44", "PK": "92", "PAKISTAN": "92"}
 
+OUTCOMES = ("Interested", "Demo booked", "Callback", "No answer", "Voicemail", "Not interested",
+            "Wrong number", "Do not call")
+DATE_RE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
+DURATION_RE = re.compile(r"^\d{1,3}:\d{2}$")
+MAX_NOTE = 5000
+
 app = Flask(__name__)
 
 
@@ -65,6 +71,14 @@ def to_e164(raw, country):
     if digits.startswith(cc) and len(digits) > 10:
         return "+" + digits
     return "+" + cc + digits.lstrip("0")
+
+
+def to_int(value, default=0):
+    """Parse a spreadsheet cell as an int ("4", 4.0, "4.5" -> 4); anything else gives the default."""
+    try:
+        return int(float(value))
+    except (TypeError, ValueError):
+        return default
 
 
 def fmt(value):
@@ -159,16 +173,46 @@ def api_leads():
     return jsonify(queue=queue, scripts=scripts, stats=stats, countries=countries, sheet=sheet, sheets=sheets)
 
 
+def fail(status, error):
+    return jsonify(ok=False, error=error), status
+
+
+def validate_save(data):
+    """Return an error message for a bad save body, or None if it is fine."""
+    if not isinstance(data, dict):
+        return "body must be a JSON object"
+    if data.get("status") not in OUTCOMES:
+        return "status must be one of: " + ", ".join(OUTCOMES)
+    followup = data.get("followup") or ""
+    if not isinstance(followup, str) or (followup and not DATE_RE.match(followup)):
+        return "followup must be empty or YYYY-MM-DD"
+    notes = data.get("notes") or ""
+    if not isinstance(notes, str) or len(notes) > MAX_NOTE:
+        return "notes must be text up to %d characters" % MAX_NOTE
+    duration = data.get("duration") or ""
+    if not isinstance(duration, str) or (duration and not DURATION_RE.match(duration)):
+        return "duration must be empty or m:ss"
+    return None
+
+
 @app.route("/api/lead/<int:row>", methods=["POST"])
 def api_save(row):
-    data = request.get_json(force=True)
+    # JSON only: a cross-site <form> can send text/plain without a preflight, but not application/json.
+    if not request.is_json:
+        return fail(415, "Content-Type must be application/json")
+    data = request.get_json(silent=True)
+    error = validate_save(data)
+    if error:
+        return fail(400, error)
     wb = load_workbook(LEADS_FILE)
     ws = wb[pick_sheet(wb, data.get("sheet"))]
+    if not (2 <= row <= ws.max_row) or not any(c.value is not None for c in ws[row]):
+        return fail(404, "no lead in row %d" % row)
     headers = {c.value: c.column for c in ws[1] if c.value}
     stamp = datetime.now().strftime("%Y-%m-%d %H:%M")
     updates = {
-        "Status": data.get("status", ""),
-        "Call Outcome": data.get("status", "") + " @ " + stamp,
+        "Status": data["status"],
+        "Call Outcome": data["status"] + " @ " + stamp,
         "Follow-up Date": data.get("followup", ""),
         "Calendly Link Sent": "Yes" if data.get("calendly_sent") else None,
         "Call Duration": data.get("duration") or None,
@@ -178,7 +222,7 @@ def api_save(row):
         old = ws.cell(row=row, column=headers["Notes"]).value or ""
         updates["Notes"] = (str(old) + "\n" if old else "") + "[" + stamp + "] " + note
     if "Attempts" in headers:
-        updates["Attempts"] = int(ws.cell(row=row, column=headers["Attempts"]).value or 0) + 1
+        updates["Attempts"] = to_int(ws.cell(row=row, column=headers["Attempts"]).value) + 1
     for col, value in updates.items():
         if col in headers and value is not None:
             ws.cell(row=row, column=headers[col], value=value)
