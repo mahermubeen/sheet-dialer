@@ -11,6 +11,7 @@ import json
 import os
 import re
 import threading
+import time
 from datetime import date, datetime
 
 try:
@@ -171,17 +172,45 @@ def matches(lead, status, country):
     return s == status
 
 
+MIN_PASSWORD = 12
+MAX_FAILURES = 20          # failed logins allowed per window...
+FAILURE_WINDOW = 10 * 60   # ...of this many seconds, before everyone gets 429 until the window passes
+_failures = []
+_failures_lock = threading.Lock()
+
+
+def too_many_failures(now):
+    with _failures_lock:
+        _failures[:] = [t for t in _failures if now - t < FAILURE_WINDOW]
+        return len(_failures) >= MAX_FAILURES
+
+
+def record_failure(now):
+    with _failures_lock:
+        _failures.append(now)
+
+
 @app.before_request
 def require_password():
-    """Basic auth when access_password is set - needed once the app is exposed through ngrok."""
+    """Basic auth when access_password is set - needed once the app is exposed through a tunnel such as ngrok.
+
+    Behind a tunnel every request comes from 127.0.0.1, so failed logins are throttled globally, not per IP.
+    """
     password = load_config().get("access_password")
     if not password:
         if request.host.split(":")[0] in ("localhost", "127.0.0.1"):
             return None
-        return Response("Set access_password in config.json before opening the dialer through ngrok.", 403)
+        return Response("Set access_password in config.json before opening the dialer through a tunnel.", 403)
+    if len(password) < MIN_PASSWORD:
+        return Response("access_password must be at least %d characters." % MIN_PASSWORD, 403)
+    now = time.monotonic()
+    if too_many_failures(now):
+        return Response("Too many failed logins - try again later.", 429)
     auth = request.authorization
     if auth and hmac.compare_digest(auth.password or "", password):
         return None
+    if auth:
+        record_failure(now)
     return Response("Password required", 401, {"WWW-Authenticate": 'Basic realm="Sheet Dialer"'})
 
 
@@ -290,6 +319,11 @@ def api_save(row):
 
 if __name__ == "__main__":
     if not os.path.exists(LEADS_FILE):
-        raise SystemExit("No leads.xlsx found. Run: .venv/bin/python make_sample.py")
+        raise SystemExit("No leads.xlsx found. Run: python make_sample.py")
+    password = load_config().get("access_password")
+    if password and len(password) < MIN_PASSWORD:
+        raise SystemExit("access_password in config.json must be at least %d characters." % MIN_PASSWORD)
+    from waitress import serve  # production WSGI server; listens on localhost only (a tunnel forwards to it)
+
     print("Dialer running at http://localhost:5050  (leads: %s)" % LEADS_FILE)
-    app.run(port=5050, debug=False)
+    serve(app, host="127.0.0.1", port=5050, threads=4)
