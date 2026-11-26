@@ -10,6 +10,7 @@ import hmac
 import json
 import os
 import re
+import threading
 from datetime import date, datetime
 
 from flask import Flask, Response, jsonify, render_template, request
@@ -177,6 +178,21 @@ def api_leads():
     return jsonify(queue=queue, scripts=scripts, stats=stats, countries=countries, sheet=sheet, sheets=sheets)
 
 
+SAVE_LOCK = threading.Lock()
+
+
+def save_workbook(wb, path):
+    """Write to a temp file next to the target, then swap it in, so a crash mid-save can't corrupt the sheet."""
+    folder, name = os.path.split(os.path.abspath(path))
+    tmp = os.path.join(folder, "." + name + ".saving.xlsx")
+    try:
+        wb.save(tmp)
+        os.replace(tmp, path)
+    finally:
+        if os.path.exists(tmp):
+            os.remove(tmp)
+
+
 def fail(status, error):
     return jsonify(ok=False, error=error), status
 
@@ -208,33 +224,35 @@ def api_save(row):
     error = validate_save(data)
     if error:
         return fail(400, error)
-    wb = load_workbook(LEADS_FILE)
-    ws = wb[pick_sheet(wb, data.get("sheet"))]
-    if not (2 <= row <= ws.max_row) or not any(c.value is not None for c in ws[row]):
-        return fail(404, "no lead in row %d" % row)
-    headers = {c.value: c.column for c in ws[1] if c.value}
-    stamp = datetime.now().strftime("%Y-%m-%d %H:%M")
-    updates = {
-        "Status": data["status"],
-        "Call Outcome": data["status"] + " @ " + stamp,
-        "Follow-up Date": data.get("followup", ""),
-        "Calendly Link Sent": "Yes" if data.get("calendly_sent") else None,
-        "Call Duration": data.get("duration") or None,
-    }
-    note = (data.get("notes") or "").strip()
-    if note and "Notes" in headers:
-        old = ws.cell(row=row, column=headers["Notes"]).value or ""
-        updates["Notes"] = (str(old) + "\n" if old else "") + "[" + stamp + "] " + note
-    if "Attempts" in headers:
-        updates["Attempts"] = to_int(ws.cell(row=row, column=headers["Attempts"]).value) + 1
-    for col, value in updates.items():
-        if col in headers and value is not None:
-            ws.cell(row=row, column=headers[col], value=value)
-    try:
-        wb.save(LEADS_FILE)
-    except PermissionError:
-        return jsonify(ok=False, error="leads.xlsx is locked - close it in Excel and try again"), 409
-    return jsonify(ok=True)
+    # One save at a time: each save rewrites the whole file, so parallel saves would lose updates.
+    with SAVE_LOCK:
+        wb = load_workbook(LEADS_FILE)
+        ws = wb[pick_sheet(wb, data.get("sheet"))]
+        if not (2 <= row <= ws.max_row) or not any(c.value is not None for c in ws[row]):
+            return fail(404, "no lead in row %d" % row)
+        headers = {c.value: c.column for c in ws[1] if c.value}
+        stamp = datetime.now().strftime("%Y-%m-%d %H:%M")
+        updates = {
+            "Status": data["status"],
+            "Call Outcome": data["status"] + " @ " + stamp,
+            "Follow-up Date": data.get("followup", ""),
+            "Calendly Link Sent": "Yes" if data.get("calendly_sent") else None,
+            "Call Duration": data.get("duration") or None,
+        }
+        note = (data.get("notes") or "").strip()
+        if note and "Notes" in headers:
+            old = ws.cell(row=row, column=headers["Notes"]).value or ""
+            updates["Notes"] = (str(old) + "\n" if old else "") + "[" + stamp + "] " + note
+        if "Attempts" in headers:
+            updates["Attempts"] = to_int(ws.cell(row=row, column=headers["Attempts"]).value) + 1
+        for col, value in updates.items():
+            if col in headers and value is not None:
+                ws.cell(row=row, column=headers[col], value=value)
+        try:
+            save_workbook(wb, LEADS_FILE)
+        except PermissionError:
+            return fail(409, "leads.xlsx is locked - close it in Excel and try again")
+        return jsonify(ok=True)
 
 
 if __name__ == "__main__":
