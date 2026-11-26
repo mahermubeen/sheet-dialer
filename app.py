@@ -4,21 +4,20 @@ Reads leads from leads.xlsx, shows one lead at a time with its script,
 dials through the Zoom desktop app (zoomphonecall:// links) and writes the
 call outcome back into the same spreadsheet.
 
-Run:  .venv/bin/python app.py   then open http://localhost:5050
+Run:  python app.py   then open http://localhost:5050
 """
+import hmac
 import json
 import os
 import re
 from datetime import date, datetime
-
-import hmac
 
 from flask import Flask, Response, jsonify, render_template, request
 from openpyxl import load_workbook
 
 BASE = os.path.dirname(os.path.abspath(__file__))
 LEADS_FILE = os.environ.get("LEADS_FILE", os.path.join(BASE, "leads.xlsx"))
-CONFIG_FILE = os.path.join(BASE, "config.json")
+CONFIG_FILE = os.environ.get("DIALER_CONFIG", os.path.join(BASE, "config.json"))
 SHEET = "Leads"
 SCRIPT_SHEET = "Scripts"
 
@@ -27,14 +26,21 @@ COUNTRY_CODES = {"US": "1", "USA": "1", "CA": "1", "CANADA": "1", "UK": "44", "G
 app = Flask(__name__)
 
 
+DEFAULT_CONFIG = {"calendly_link": "https://calendly.com/your-link/demo", "caller_id": "", "your_name": "",
+                  "product_name": "Acme Assist", "zoom_mode": "link", "access_password": ""}
+_config_cache = {"mtime": None, "cfg": dict(DEFAULT_CONFIG)}
+
+
 def load_config():
-    cfg = {"calendly_link": "https://calendly.com/your-link/demo", "caller_id": "", "your_name": "",
-           "product_name": "Acme Assist",
-           "zoom_mode": "link", "access_password": ""}
-    if os.path.exists(CONFIG_FILE):
-        with open(CONFIG_FILE) as f:
-            cfg.update(json.load(f))
-    return cfg
+    """Config from config.json over the defaults, re-read only when the file changes."""
+    mtime = os.path.getmtime(CONFIG_FILE) if os.path.exists(CONFIG_FILE) else None
+    if mtime != _config_cache["mtime"]:
+        cfg = dict(DEFAULT_CONFIG)
+        if mtime is not None:
+            with open(CONFIG_FILE) as f:
+                cfg.update(json.load(f))
+        _config_cache.update(mtime=mtime, cfg=cfg)
+    return dict(_config_cache["cfg"])
 
 
 def to_e164(raw, country):
