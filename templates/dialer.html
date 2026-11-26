@@ -431,7 +431,7 @@ function render(){
         ${lead["Fit Score"] ? `<span class="badge">Fit ${esc(lead["Fit Score"])}/5</span>`:""}
         ${lead.Status ? `<span class="badge">${esc(lead.Status)}</span>`:""}
         ${lead["DNC Checked"] ? `<span class="badge">DNC: ${esc(lead["DNC Checked"])}</span>`:""}</div>
-      <div class="phone">${lead._blocked ? `<span class="blocked">${esc(lead._blocked)} - not dialable</span>` : esc(lead._dial || "no phone")}</div>
+      <div class="phone">${lead._blocked ? `<span class="blocked">${esc(lead._blocked)} - not dialable</span>` : lead._bad_phone ? `<span class="blocked">Invalid number: ${esc(lead._bad_phone)}</span>` : esc(lead._dial || "no phone")}</div>
       <div class="row">
         ${callBtn}
         <button class="ghost" onclick="next()">Skip</button>

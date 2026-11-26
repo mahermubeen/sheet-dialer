@@ -83,6 +83,14 @@ def to_int(value, default=0):
         return default
 
 
+def valid_e164(number):
+    """+ then 8-15 digits; North American (+1) numbers must have exactly 10 digits after the 1."""
+    digits = number[1:]
+    if not (number.startswith("+") and digits.isdigit() and 8 <= len(digits) <= 15):
+        return False
+    return len(digits) == 11 if digits.startswith("1") else True
+
+
 def fmt(value):
     if isinstance(value, (datetime, date)):
         return value.strftime("%Y-%m-%d")
@@ -111,10 +119,13 @@ def read_leads(sheet=None):
         lead = {h: fmt(v) for h, v in zip(headers, row) if h}
         lead["_row"] = row_idx
         lead["_dial"] = to_e164(lead.get("Phone"), lead.get("Country"))
+        if lead["_dial"] and not valid_e164(lead["_dial"]):
+            lead["_bad_phone"] = lead.get("Phone", "")
+            lead["_dial"] = ""
         if lead.get("Status") in NO_DIAL:
             lead["_blocked"] = lead["Status"]
             lead["_dial"] = ""  # never sent to the browser as dialable, so no view or auto-dial can call it
-        if sheet != SHEET and not lead["_dial"] and not lead.get("_blocked"):
+        if sheet != SHEET and not lead["_dial"] and not lead.get("_blocked") and not lead.get("_bad_phone"):
             continue  # extra tabs list every lead for reference; only rows with a number are callable
         leads.append(lead)
     scripts = {}
@@ -166,7 +177,7 @@ def api_leads():
     status = request.args.get("status", "new")
     country = request.args.get("country", "")
     queue = [l for l in leads if matches(l, status, country)]
-    queue.sort(key=lambda l: -int(l.get("Fit Score") or 0))
+    queue.sort(key=lambda l: -to_int(l.get("Fit Score")))
     stats = {
         "total": len(leads),
         "called": sum(1 for l in leads if l.get("Status") not in ("", "New")),
