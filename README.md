@@ -10,8 +10,6 @@ A keyboard-driven power dialer for B2B cold calling: it turns a lead spreadsheet
 
 I built this in Sep–Oct 2026 for outbound calling campaigns I was running to small businesses (clinics, agencies, brokers) in the US and Canada. The leads lived in a spreadsheet. Every call meant copying a number into Zoom, finding the right script, then typing the outcome and a follow-up date back into Excel by hand. That's slow, and it's easy to call someone twice or forget a callback.
 
-The usual fix is a paid power dialer. Those are priced per seat and expect you to move your leads into their CRM. I wanted to keep the spreadsheet as the source of truth and use the Zoom Phone line I already had. I used it on my own campaigns: around 120 call outcomes logged.
-
 ## What it does
 
 - **One lead at a time**, sorted by fit score, with queues for *new*, *follow-up due* and *all*.
